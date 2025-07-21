@@ -1,0 +1,453 @@
+---
+title: "WDA Student Workshop 2025: Part 2 Spatial Analysis"
+author: "YOUR NAME HERE"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    collapsed: false
+    theme: darkly
+    output_dir: "C:/Users/angel/OneDrive - The Pennsylvania State University/Documents/Teaching/R/wda-workshop-2025"
+---
+
+```{r setup, include=FALSE, cache = FALSE}
+
+
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file(),
+fig.width = 12,
+fig.height = 10,
+fig.align = 'center')
+
+
+```
+
+### Outline
+
+The sections of this workshop R script/R markdown are as follows:
+
+ 1. **Spatial Data Basics**
+ - Import Data
+ - Data Cleaning and Introduction to Piping
+ - Convert to a Spatial Data Object Type using Sf
+ - Visualizing Our Spatial Data
+ - Importance of Matching Projections
+
+ 2. **Working with Geometric Operations in Sf**
+ - Creating a Spatial Grid (this is as far as we will attempt to get for today)
+ - Working with Raster and Vector Data
+ - Working with Vector and Vector Data
+
+ 3. **Assessing Correlation**
+ - Checking for simple correlation between species data and and covariate data
+ - Checking for spatial autocorrelation in the temperature covariate
+
+
+### Data
+
+ We are working primarily with the species occurrence dataset from Global Biodiversity Facility Information (GBIF) but there is extra code for the World Clim habitat data.
+
+ - *sp* - a dataframe containing species occurrence information from aggregated sources (raw data is stored as a TSV or tab separated value)
+ - *World Clim: Precipitation and Temperature* - yearly average for each month of the year between 1970–2000 (raw data is stored as geotifs)
+
+
+### Load Libraries
+```{r}
+
+
+library(tidyverse)
+library(sf)
+library(terra)
+library(CoordinateCleaner)
+library(rnaturalearth)
+library(units)
+library(spdep)
+```
+
+## Spatial Data Basics:
+
+### Import Data
+
+```{r}
+
+
+sp<-read.delim("data_raw/dicamptodon_tenebrosus_gbif/dicamptodon_tenebrosus_gbif.csv",sep = "\t", stringsAsFactors = T)
+
+
+```
+
+
+### Data Cleaning and Introduction to Piping
+```{r}
+
+
+  sp_clean <- sp %>%
+
+    filter(occurrenceStatus  == "PRESENT") %>%
+
+    filter(!basisOfRecord %in% c("FOSSIL_SPECIMEN","LIVING_SPECIMEN","MATERIAL_SAMPLE","MATERIAL_CITATION")) %>%
+
+    filter(year >= 1994) %>%
+
+
+    mutate(coordinateUncertaintyInMeters = case_when(coordinateUncertaintyInMeters %in% c(301,3036,999,9999) ~ NA,T ~ coordinateUncertaintyInMeters)) %>%
+
+
+    filter(coordinateUncertaintyInMeters <= 3000) %>%
+
+
+    filter(!decimalLatitude == 0 | !decimalLongitude == 0) %>%
+
+
+    cc_cen(buffer = 2000) %>%
+
+
+    cc_cap(buffer = 2000) %>%
+
+
+
+    cc_inst(buffer = 2000) %>%
+
+
+
+    cc_sea() %>%
+
+
+    distinct(decimalLongitude, decimalLatitude, speciesKey, datasetKey, .keep_all = TRUE)
+
+
+
+```
+
+
+### Convert to a Spatial Data Object Type using Sf
+
+Here we convert our data frame into an sf spatial data object. It converts the coordinate columns (latitude and longitude) into a single column that contains individual point geometries.
+
+```{r}
+
+class(sp_clean)
+
+
+
+sp_clean_sf<-st_as_sf(sp_clean,coords = c("decimalLongitude", "decimalLatitude"),crs = 4326)
+
+
+
+sp_clean_sf
+
+class(sp_clean_sf)
+
+str(sp_clean_sf)
+```
+
+
+### Visualizing Our Spatial Data
+
+Here we visualize our data and change the plotting window limits to to match the boundaries of our species data points.
+
+```{r}
+
+##Initial Plot
+
+
+ggplot()+
+  geom_sf(data=sp_clean_sf,colour="red")
+
+
+
+
+
+st <- ne_states(country = c("Canada","United States of America"),
+                                 returnclass = "sf")
+
+
+ggplot()+
+  geom_sf(data=st,colour="black")+
+  geom_sf(data=sp_clean_sf,colour="red")
+
+
+
+
+##Zooming In
+
+
+bb <- st_bbox(sp_clean_sf)
+bb
+
+
+ggplot()+
+  geom_sf(data=st,colour="black")+
+  geom_sf(data=sp_clean_sf,colour="red")+
+    coord_sf(xlim = bb[c("xmin", "xmax")], ylim = bb[c("ymin", "ymax")])
+
+```
+
+
+### Importance of Matching Projections
+
+Here we change our species data points into a projection that preserves area, confirm the mismatch in projections between the state and species data, and then subsequently change the state data to the same projection as the species data.
+
+```{r}
+
+## Checks
+
+
+sp_clean_sf<-sp_clean_sf%>%
+st_transform(crs = 5070)
+
+crs(sp_clean_sf)
+crs(st)
+crs(st)==crs(sp_clean_sf)
+
+
+##Plots
+
+
+ggplot()+
+  geom_sf(data=st,colour="black")+
+  geom_sf(data=sp_clean_sf,colour="red")+
+    coord_sf(xlim = bb[c("xmin", "xmax")], ylim =  bb[c("ymin", "ymax")])
+
+
+
+
+
+plot(sf::st_geometry(st), col = "lightgrey", xlim = bb[c("xmin", "xmax")], ylim = bb[c("ymin", "ymax")], axes = TRUE)
+plot(sf::st_geometry(sp_clean_sf), col = "red",add = TRUE)
+
+
+bb <- st_bbox(sp_clean_sf)
+plot(sf::st_geometry(st), col = "lightgrey", xlim = bb[c("xmin", "xmax")], ylim = bb[c("ymin", "ymax")], axes = TRUE)
+plot(sf::st_geometry(sp_clean_sf), col = "red",add = TRUE)
+
+
+
+
+## Fix
+
+
+st<-st%>%
+st_transform(crs = 5070)
+
+
+bb <- st_bbox(sp_clean_sf)
+plot(sf::st_geometry(st), col = "lightgrey", xlim = bb[c("xmin", "xmax")], ylim = bb[c("ymin", "ymax")], axes = TRUE)
+plot(sf::st_geometry(sp_clean_sf), col = "red",add = TRUE)
+
+
+
+```
+
+## Working with Geometric Operations in Sf:
+
+###  Creating a Spatial Grid
+
+Here we change our multiple point geometries into one multipoint geometry to create a unified convex polygon. The convex polygon is then used to create a "species range" that we use as the range over which we build a spatial grid.
+
+```{r}
+
+
+##Convex Hull
+
+
+sp_clean_sf_multi<-st_union(sp_clean_sf)
+sp_clean_sf_multi
+
+
+sp_clean_sf_hull<-st_buffer(st_convex_hull(sp_clean_sf_multi),10000)
+
+sp_clean_sf_hull
+
+plot(sp_clean_sf_hull)
+sp_clean_sf_hull<-st_intersection(sp_clean_sf_hull,st)
+plot(sp_clean_sf_hull)
+
+sp_clean_sf_hull<-st_union(sp_clean_sf_hull)
+
+
+plot(sp_clean_sf_hull)
+
+
+plot(sp_clean_sf_hull)
+plot(sp_clean_sf_multi, add=T)
+
+
+
+## Cell Size
+
+
+
+cellarea<-40e6
+cellsize<-sqrt((2 * cellarea) / (3 * sqrt(3)))
+
+
+## Grid!
+
+
+
+  grid <- st_make_grid(x = sp_clean_sf_hull,
+               cellsize = cellsize,
+               square = F) %>%
+    st_sf()%>%
+    st_intersection(sp_clean_sf_hull)%>%
+     mutate(area_m2 = st_area(geometry)) %>%
+     filter(area_m2 > max(area_m2)-set_units(1, m^2)) %>%
+       mutate(grid.id = row_number())
+
+
+ggplot()+
+  geom_sf(data=grid,colour="black")+
+  geom_sf(data=sp_clean_sf,colour="red")+
+    coord_sf(xlim = bb[c("xmin", "xmax")], ylim =  bb[c("ymin", "ymax")])
+
+  save(grid, file = "data_processed/grid_d.tenebrosus.rdata")
+
+
+
+```
+
+### Working with Raster and Vector Data
+
+Here we summarize environmental covariates (habitat data) to the species grid.
+```{r}
+
+prec_files <- list.files("data_raw/clim/climate/wc2.1_30s", pattern = "wc2.1_30s_prec_\\d+\\.tif$", full.names = TRUE)
+
+
+
+prec_stack <- rast(prec_files)
+
+
+prec_yr <- sum(prec_stack)
+
+names(prec_yr)<-"Precip.Total"
+
+
+tmax_files <- list.files("data_raw/clim/climate/wc2.1_30s", pattern = "wc2.1_30s_tmax_\\d+\\.tif$", full.names = TRUE)
+
+
+
+tmax_stack <- rast(tmax_files)[[5:8]]
+
+
+tmax_summer <- sum(tmax_stack)
+
+names(tmax_summer)<-"Summer.Temp.Maximum"
+
+clim_stack<-c(tmax_summer,prec_yr)
+
+
+
+
+crs(clim_stack)
+
+sf::st_crs(sp_clean_sf_hull)==sf::st_crs(clim_stack)
+
+
+
+hull.crop<-sp_clean_sf_hull%>%
+  st_buffer(60000)%>%
+  st_transform(crs = st_crs(clim_stack))
+
+plot(hull.crop)
+
+bb.cov<-st_bbox(hull.crop)
+
+
+clim.stack1 <- terra::crop(clim_stack, bb.cov)
+
+
+clim.stack2 <- clim.stack1 %>%
+    project(crs(grid), method="bilinear")
+
+
+
+bb.cells<-st_bbox(grid[1:40,])
+
+
+plot(clim.stack2[[1]], xlim = bb.cells[c("xmin", "xmax")], ylim = bb.cells[c("ymin", "ymax")], axes = TRUE)
+plot(sf::st_geometry(grid[1:40,]), col = NA, border = "grey23", add = TRUE)
+
+
+
+covs <- terra::zonal(clim.stack2,
+                        terra::vect(grid),
+                        fun="mean",na.rm=T,
+                        weights=T)%>%
+    mutate(grid.id = grid$grid.id)
+
+
+
+```
+
+
+
+### Working with Vector and Vector Data
+
+Here we summarize species occurrences to the species grid and join all data together.
+
+```{r}
+
+sp.agg <- grid %>%
+  mutate(count.to.bin = lengths(st_intersects(grid, sp_clean_sf)))
+
+nrow(sp.agg)==nrow(covs)
+
+all<-left_join(sp.agg,covs, by="grid.id")
+
+plot(all)
+
+```
+
+
+## Assessing Correlation
+
+### Checking for simple correlation between species data and and covariate data
+
+Normally, we would want to use something a bit more flexible like such as some sort of regression model where we could use habitat information to explain species occurrences. For simplicity, we just check for correlation between our covariates and the species data.
+
+```{r}
+
+all%>%
+select(Summer.Temp.Maximum,Precip.Total,count.to.bin) %>%
+  mutate(across(everything(), as.numeric)) %>%
+  cor(method = 'spearman', use = "pairwise.complete.obs")
+
+
+hist(all$count.to.bin)
+
+
+```
+
+
+
+### Checking for spatial autocorrelation in the temperature covariate
+
+Before we go, let's use Morans I to check spatial autocorrelation in our covariates and species data.
+
+This is an important step in deciding whether we will need to model the relationships between the covariates and the species data using an explicitly spatial statistical model.
+
+```{r}
+
+
+nb <- all%>%
+  poly2nb(queen=TRUE)
+
+
+nb[52]
+
+
+lw <- nb2listw(nb, style="W", zero.policy=TRUE)
+
+
+lw$weights[52]
+
+
+
+moran.test(all$Summer.Temp.Maximum,listw=lw, alternative="greater")
+
+
+
+```
+

@@ -1,0 +1,161 @@
+---
+title: "WDA Student Workshop 2025: Part 1 R Basics"
+author: "YOUR NAME HERE"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    collapsed: false
+    theme: darkly
+    output_dir: "C:/Users/angel/OneDrive - The Pennsylvania State University/Documents/Teaching/R/wda-workshop-2025"
+---
+
+```{r setup, include=FALSE, cache = FALSE}
+
+# Set the global working directory for R Markdown
+
+#This sets tells R to always set the root the root directory as our project root.
+#We also tell R how big the output figures should look in our HTML document for the RMD.
+
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file(),
+fig.width = 12, 
+fig.height = 10, 
+fig.align = 'center')
+
+
+```
+
+### Outline
+ 
+The sections of this workshop R script/R markdown are as follows:
+
+ 1. **Import Data**
+
+ 2. **Data Inspection** 
+
+ 3. **Data Subsetting**
+ 
+ 4. **Using Functions and Dealing with NAs**
+ 
+ 5. **Working with Logical Operators**
+
+
+### Data
+ 
+ We are working with the species occurrence dataset from Global Biodiversity Facility Information (GBIF).
+ 
+ - *sp* - a dataframe containing species occurrence information from aggregated sources (raw data is stored as a TSV or tab separated value)
+
+### Import Data
+
+```{r}
+#sp<-read.csv("data_raw/dicamptodon_tenebrosus_gbif/dicamptodon_tenebrosus_gbif.csv", stringsAsFactors = T)
+#Why does this give us an error? Let's look at the data file...our actual file is a TSV not a CSV
+
+#?read.csv #look here to see which function is more suitable for our data type
+
+read.delim("data_raw/dicamptodon_tenebrosus_gbif/dicamptodon_tenebrosus_gbif.csv",sep = "\t", stringsAsFactors = T) 
+
+sp<-read.delim("data_raw/dicamptodon_tenebrosus_gbif/dicamptodon_tenebrosus_gbif.csv",sep = "\t", stringsAsFactors = T) #Reads in and looks good! Take a gander!
+
+#More details about the standardized GBIF columns here: https://dwc.tdwg.org/terms/
+
+#Here you can uncomment the below line to try a different dataset on your own!
+#sp<-read.delim("data_raw/cervus_canadensis_gbif/cervus_canadensis_gbif.csv",sep = "\t", stringsAsFactors = T)
+
+```
+
+
+### Data Inspection
+
+Here we learn how to inspect our data through the str, head, and names functions.
+
+```{r}
+
+str(sp) 
+head(sp)
+names(sp)
+
+```
+
+### Data Subsetting
+
+Here we learn how to subset our data by rows and columns.
+
+```{r}
+#NOTE: This is referencing data frame object types. These may require different syntax/may work differently for non data frame objects. 
+
+sp[1:6, ] #first 6 rows, all columns
+
+sp["eventDate"] #pulls out the column named "eventDate"
+
+sp_date<-sp["eventDate"] #now its a named object in our environment pane (still a data frame object type)
+
+
+sp$eventDate
+
+sp_date_vec<-sp$eventDate #Why does this look different? It's because when we subset in this way R returns sp_date_vec as a vector of values we can compare using class() 
+
+
+sp[c("eventDate","institutionCode", "basisOfRecord")] #will pull out all of these columns as a data frame object type in the order you specify them in
+
+```
+
+### Using Functions and Dealing with NAs
+
+Here we learn how to use functions and learn to understand the impact of NAs on some functions.
+```{r}
+
+#Using Functions
+mean(sp$coordinateUncertaintyInMeters) #result is NA :(
+
+
+mean(sp$coordinateUncertaintyInMeters, na.rm = TRUE) #we tell the function to ignore NAs and now we get the mean! thats a high average coordinate uncertainty (in meters)!
+
+
+round(mean(sp$coordinateUncertaintyInMeters, na.rm = TRUE)) #this will return the same result as...
+
+avg<-mean(sp$coordinateUncertaintyInMeters, na.rm = TRUE) 
+round(avg)
+
+
+#Filtering NAs
+
+#!is.na(sp$coordinateUncertaintyInMeters) #returns a logical vector that tells us which item in the sp$coordinateUncertaintyInMeters is NOT an NA value. is.na() should return the opposite result. 
+
+
+```
+
+### Working with Logical Operators
+
+Here we become familar with how logical operators work and how we can use these to manipulate our data.
+
+```{r}
+sp_inat <- sp[sp$institutionCode=="iNaturalist", ] #takes all rows where the institution code returned TRUE for the value "iNaturalist"
+
+#sp$institutionCode=="iNaturalist" #here you can see exactly what the input looks like for above, it will return a logical vector (true or false)
+
+
+sp_inat_cas <- sp[sp$institutionCode=="iNaturalist" | sp$institutionCode=="CAS", ] #takes rows where the logical vector returns true for iNaturalist OR CAS 
+
+```
+
+
+### Using Functions from Packages and Removing columns
+
+Here we learn how to remove columns without a function and with a function.
+
+```{r}
+#install.packages("tidyverse") #uncomment if you need to install the package
+library(tidyverse) #Here we load a library. We need to install a package and load a library to use its functions in R. 
+
+sp_less <- sp[,-c(7,8)]  #here we remove columns by number index NOTE this isn't the best method because number indices change. Putting in "hard" numbers like this is considered "hard" coding. We want to "soft" code wherever possible so we have to make fewer changes to our code when other parts of our code change down the line
+
+#For example this may be a better "soft" coding option because it will take out the relevant column by name rather than by column number index
+
+sp_less_tidy <- select(sp, -recordNumber) #select here comes from the package dplyr or tidyverse
+
+
+```
+
