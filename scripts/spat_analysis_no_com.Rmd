@@ -86,7 +86,7 @@ sp<-read.delim("data_raw/dicamptodon_tenebrosus_gbif/dicamptodon_tenebrosus_gbif
     filter(occurrenceStatus  == "PRESENT") %>%
 
     filter(!basisOfRecord %in% c("FOSSIL_SPECIMEN","LIVING_SPECIMEN","MATERIAL_SAMPLE","MATERIAL_CITATION")) %>%
-
+  
     filter(year >= 1994) %>%
 
 
