@@ -321,7 +321,7 @@ plot(sp_clean_sf_multi, add=T)
 #For fun you could try to change the cell area here to something smaller to demonstrate above
 
 cellarea<-40e6 #define our spatial unit (grid cell size) in meters squared (the units of our crs). This would be 40km^2.
-cellsize<-sqrt((2 * cellarea) / (3 * sqrt(3)))#Set the grid cell size (opposite edge length) as a function of desired cell area, this is the input the st_make_grid function takes
+cellsize<-2 * sqrt(cellarea/((3*sqrt(3)/2))) * sqrt(3)/2 #Set the grid cell size (opposite edge length) as a function of desired cell area, this is the input the st_make_grid function takes
   
 ## Grid!
 

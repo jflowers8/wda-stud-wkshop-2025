@@ -100,7 +100,7 @@ plot(sp_clean_sf_multi, add=T)
 
 ## Cell Size
 cellarea<-40e6
-cellsize<-sqrt((2 * cellarea) / (3 * sqrt(3)))
+cellsize<-2 * sqrt(cellarea/((3*sqrt(3)/2))) * sqrt(3)/2
 
 ## Grid!
 grid <- st_make_grid(x = sp_clean_sf_hull,
